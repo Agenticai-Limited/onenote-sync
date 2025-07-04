@@ -4,12 +4,12 @@ A pipeline to process OneNote pages and store them in VectorDB.
 
 ## Features
 
-*   **OneNote Integration**: Fetches pages from Microsoft OneNote.
-*   **Content Processing**: Extracts and processes content from OneNote pages.
-*   **VectorDB Storage**: Stores processed content as vectors in VectorDB.
-*   **PostgreSQL Metadata**: Stores page metadata in PostgreSQL for incremental updates.
-*   **Image & Table**: Supports image and table summary extraction.
-*   **FastAPI Interface**: Provides a RESTful API to trigger the pipeline.
+- **OneNote Integration**: Fetches pages from Microsoft OneNote (including SharePoint OneNote).
+- **Content Processing**: Extracts and processes content from OneNote pages.
+- **VectorDB Storage**: Stores processed content as vectors in VectorDB.
+- **PostgreSQL Metadata**: Stores page metadata in PostgreSQL for incremental updates.
+- **Image & Table**: Supports image and table summary extraction.
+- **FastAPI Interface**: Provides a RESTful API to trigger the pipeline.
 
 ## Project Structure
 
@@ -35,9 +35,9 @@ uv.lock      # UV lock file for dependencies
 
 ### Prerequisites
 
-*   Python 3.9+
-*   Milvus instance (running and accessible)
-*   PostgreSQL instance (running and accessible)
+- Python 3.9+
+- Milvus instance (running and accessible)
+- PostgreSQL instance (running and accessible)
 
 ### 1. Environment Variables
 
@@ -48,7 +48,9 @@ Create a `.env` file in the root directory based on `.env.example` and fill in t
 MS_CLIENT_ID="YOUR_MS_CLIENT_ID"
 MS_CLIENT_SECRET="YOUR_MS_CLIENT_SECRET"
 
-...
+# SharePoint Settings
+SHAREPOINT_SITE_NAME="YOUR_SHAREPOINT_SITE_NAME" # e.g., "My SharePoint Site"
+SHAREPOINT_NOTEBOOK_NAME="YOUR_SHAREPOINT_NOTEBOOK_NAME" # e.g., "My OneNote Notebook"
 
 # API Key for pipeline trigger endpoint
 API_KEY="your_secret_api_key"
@@ -66,16 +68,39 @@ uv sync
 
 The main API endpoint to trigger the OneNote processing pipeline is:
 
-*   **POST `/api/v1/pipeline/process-onenote`**
+- **POST `/api/v1/pipeline/process-onenote`**
 
 This endpoint requires an `X-API-KEY` header for authentication. The API key is configured in your `.env` file.
 
 ### Example using `curl`
 
+The pipeline can fetch pages from either personal OneNote or SharePoint OneNote. By default, it uses SharePoint OneNote.
+This behavior is controlled by the `use_sharepoint` boolean parameter in the request body, which is optional.
+
+To use SharePoint OneNote (default behavior, `use_sharepoint` is implicitly `true`):
+
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/v1/pipeline/process-onenote" \
      -H "X-API-KEY: your_secret_api_key" \
-     -H "Content-Type: application/json"
+     # No -d parameter needed for default behavior
+```
+
+To explicitly use SharePoint OneNote (or if you prefer to be explicit):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/pipeline/process-onenote" \
+     -H "X-API-KEY: your_secret_api_key" \
+     -H "Content-Type: application/json" \
+     -d '{"use_sharepoint": true}'
+```
+
+To use personal OneNote (set `use_sharepoint` to `false`):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/pipeline/process-onenote" \
+     -H "X-API-KEY: your_secret_api_key" \
+     -H "Content-Type: application/json" \
+     -d '{"use_sharepoint": false}'
 ```
 
 ### Expected Response
@@ -97,4 +122,3 @@ Upon successful execution, the API will return a JSON object with the pipeline s
 ## Logging
 
 Application logs are configured using `loguru` and will be written to the `logs/` directory (`app.log` and `app-debug.log`).
-        

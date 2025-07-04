@@ -6,7 +6,7 @@ import requests
 import boto3
 import filetype
 import time
-import random
+import datetime
 from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup, NavigableString
 from typing import List, Dict, Any, Optional, Literal
@@ -28,14 +28,11 @@ class ContentProcessor:
         self.chunk_overlap = chunk_overlap
         self.image_storage_path = Path(settings.IMAGE_STORAGE_PATH).expanduser()
         self.image_storage_path.mkdir(parents=True, exist_ok=True)
-        self.img_prompt = (
+        self.img_prompt = """
+            Please provide a concise, two-sentence description of this image or screenshot. 
+            Focus on the main visual elements, any prominent text/labels, 
+            and its primary function or relevance within the document's context.
             """
-            Provide a concise and informative description of this image or screenshot.
-            Focus on key visual elements, any visible text, labels, or data.
-            If this is a screenshot, summarize the main interface or process shown, 
-            and explain its relevance to the surrounding document or instructions.
-            """
-        )
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
@@ -160,10 +157,14 @@ class ContentProcessor:
         if not markdown_table.strip():
             return ""
         try:
-            prompt = f"Please provide a concise, but detailed summary of the following Markdown table:\n\n{markdown_table}"
+            prompt = f"Please summarize the following Markdown table in three sentences. Focus on the key data, trends, or notable entries:\n\n{markdown_table}"
             summary = self._get_table_summary_from_amazon(prompt)
             logger.info(f"Generated table summary using Titan: {summary.strip()}")
-            return f"\n[Table Summary: {summary.strip()}]\n{markdown_table}\n"
+            table_data = {
+                "summary": summary.strip(),
+                "markdown_table": markdown_table.strip()
+            }
+            return f"[TABLE_INFO]{json.dumps(table_data)}[/TABLE_INFO]"
         except Exception as e:
             logger.error(f"Failed to generate summary for table using Titan: {e}", exc_info=True)
             return f"\n[Table processing failed]\n{markdown_table}\n"
@@ -173,6 +174,10 @@ class ContentProcessor:
         src = img_tag.get('src', '')
         if not src or '/onenote/resources/' not in src:
             return ""
+        # Correct the URL if it contains 'siteCollections' instead of 'sites' for SharePoint images
+        if 'siteCollections' in src:
+            src = src.replace('siteCollections', 'sites')
+
         try:
             logger.info(f"Downloading image from: {src}")
             headers = {'Authorization': f'Bearer {access_token}'}
@@ -183,22 +188,33 @@ class ContentProcessor:
             kind = filetype.guess(image_data)
             content_type, file_extension = (kind.mime, kind.extension) if kind else ('image/png', 'png')
 
-            image_hash = hashlib.sha256(image_data).hexdigest()
-            image_dir = self.image_storage_path / page_id
-            image_dir.mkdir(exist_ok=True)
-            image_path = image_dir / f"{image_hash}.{file_extension}"
+            # Format: ddmmyy/8-char-hash.extension
+            today = datetime.date.today()
+            date_dir = self.image_storage_path / today.strftime("%d%m%y")
+            date_dir.mkdir(parents=True, exist_ok=True)
 
-            with open(image_path, "wb") as f:
-                f.write(image_data)
-            logger.info(f"Saved image to {image_path}")
+            image_hash = hashlib.sha256(image_data).hexdigest()
+            image_filename = f"{image_hash[:8]}.{file_extension}"
+            image_path = date_dir / image_filename
+
+            if not os.path.exists(image_path):
+                with open(image_path, "wb") as f:
+                    f.write(image_data)
+                logger.info(f"Saved image to {image_path}")
+            else:
+                logger.info(f"Image {image_path} already exists, skipping save.")
 
             base64_encoded_image = base64.b64encode(image_data).decode('utf-8')
 
-            description = self._get_img_description_from_claude(base64_encoded_image, content_type)
+            description = self._get_img_description_from_amazon(base64_encoded_image, content_type)
             logger.info(f"Generated image description using Amazon: {description.strip()}")
-            return f"\n[Image Source: {str(image_path)}, Description: {description.strip()}]\n"
+
+            # Construct the public-facing HTTP URI for the image
+            http_uri = f"{settings.IMAGE_BASE_URI}/{date_dir.name}/{image_filename}"
+            image_data = {"source": http_uri, "description": description.strip()}
+            return f"[IMAGE_INFO]{json.dumps(image_data)}[/IMAGE_INFO]"
         except Exception as e:
-            logger.error(f"Failed to process image using {self.image_model}: {e}", exc_info=True)
+            logger.error(f"Failed to process image: {e}", exc_info=True)
             return "\n[Image processing failed]\n"
 
     def _chunk_text(self, text: str) -> List[str]:

@@ -170,7 +170,7 @@ class MilvusHandler:
         
         # Create an index for the vector field
         index_params = {
-            "metric_type": "L2",
+            "metric_type": "IP",
             "index_type": "AUTOINDEX",
         }
         self.collection.create_index(field_name="vector", index_params=index_params)

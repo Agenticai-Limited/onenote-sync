@@ -31,9 +31,14 @@ class Settings(BaseSettings):
     
     # Local Data Storage
     IMAGE_STORAGE_PATH: str
+    IMAGE_BASE_URI: str
 
     # API Security
     API_KEY: str
+
+    # SharePoint
+    SHAREPOINT_SITE_NAME: str
+    SHAREPOINT_NOTEBOOK_NAME: str
 
 # Create a single settings instance to be used across the application
 settings = Settings()

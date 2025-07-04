@@ -1,12 +1,12 @@
 from datetime import datetime
 from loguru import logger
 
-from app.services import ms_graph_auth, onenote_fetcher
+from app.services import ms_graph_auth, sharepoint_onenote_fetcher, onenote_fetcher
 from app.services.content_processor import ContentProcessor
 from app.storage.db_handler import PostgresHandler, MilvusHandler
 from app.core.config import settings
 
-def run_pipeline():
+def run_pipeline(use_sharepoint: bool = True):
     """
     Executes the full OneNote data ingestion and processing pipeline.
     """
@@ -31,8 +31,12 @@ def run_pipeline():
         access_token = ms_graph_auth.get_access_token(user_email=settings.MS_USER_EMAIL)
 
         # 4. Fetch all pages from OneNote
-        logger.info("Fetching all pages from OneNote...")
-        all_pages = onenote_fetcher.fetch_all_pages(access_token)
+        if use_sharepoint:
+            logger.info("Fetching all pages from SharePoint OneNote...")
+            all_pages = sharepoint_onenote_fetcher.fetch_all_pages_sharepoint(access_token)
+        else:
+            logger.info("Fetching all pages from OneNote...")
+            all_pages = onenote_fetcher.fetch_all_pages(access_token)
         if not all_pages:
             logger.warning("No pages found or fetching failed. Stopping pipeline.")
             return {
@@ -52,6 +56,7 @@ def run_pipeline():
         for page in all_pages:
             page_id = page['id']
             page_title = page['title']
+
             # OneNote provides ISO 8601 UTC time (e.g., '2024-05-22T05:39:09.33Z')
             onenote_modified_time_str = page['lastModifiedDateTime']
             onenote_modified_time = datetime.fromisoformat(onenote_modified_time_str.replace('Z', '+00:00'))
@@ -76,7 +81,7 @@ def run_pipeline():
                     page_id=page_id,
                     last_modified_time=onenote_modified_time.isoformat(),
                     title=page_title,
-                    section_name=page.get('sectionDisplayName', '')
+                    section_name=page.get('sectionDisplayName', ''),
                 )
             else:
                 process_stats["skipped"]["count"] += 1
