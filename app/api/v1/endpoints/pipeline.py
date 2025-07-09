@@ -39,6 +39,7 @@ def trigger_pipeline(request: Optional[PipelineTriggerRequest] = Body(None)):
             use_sharepoint = request.use_sharepoint
 
         result = pipeline_service.run_pipeline(use_sharepoint=use_sharepoint)
+        logger.info(f"Pipeline result: {result}")
         logger.info(f"Pipeline processing finished successfully. Took {(datetime.now() - timenow).total_seconds():.2f} seconds")
         return result
     except Exception as e:
