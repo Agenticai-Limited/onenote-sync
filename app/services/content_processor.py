@@ -215,7 +215,7 @@ class ContentProcessor:
             return f"[IMAGE_INFO]{json.dumps(image_data)}[/IMAGE_INFO]"
         except Exception as e:
             logger.error(f"Failed to process image: {e}", exc_info=True)
-            return "\n[Image processing failed]\n"
+            return ""
 
     def _chunk_text(self, text: str) -> List[str]:
         """Splits text into overlapping chunks using RecursiveCharacterTextSplitter."""
