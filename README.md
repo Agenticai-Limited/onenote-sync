@@ -110,12 +110,91 @@ Upon successful execution, the API will return a JSON object with the pipeline s
 ```json
 {
   "status": "success",
-  "message": "Pipeline finished.",
+  "message": null,
   "new_pages_count": 5,
   "new_pages_titles": ["Page Title 1", "Page Title 2"],
   "updated_pages_count": 2,
   "updated_pages_titles": ["Updated Page 1", "Updated Page 2"],
+  "deleted_pages_count": 1,
+  "deleted_pages_ids": ["0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
   "skipped_pages_count": 10
+}
+```
+
+## Sync Log Endpoints
+
+The API provides endpoints to retrieve synchronization logs. These also require the `X-API-KEY` header.
+
+### Get Logs by Run ID
+
+- **GET `/api/v1/pipeline/logs/run/{sync_run_id}`**
+
+Retrieves a summary and detailed logs for a specific synchronization run. The `sync_run_id` is the date of the run in `YYYYMMDD` format.
+
+#### Example using `curl`
+
+```bash
+curl -X GET "http://127.0.0.1:8000/api/v1/pipeline/logs/run/20240712" \
+     -H "X-API-KEY: your_secret_api_key"
+```
+
+#### Expected Response
+
+```json
+{
+    "sync_run_id": "20240712",
+    "summary": {
+        "created": 1,
+        "updated": 5,
+        "deleted": 0,
+        "total": 6
+    },
+    "logs": [
+        {
+            "log_id": 1,
+            "sync_run_id": "20240712",
+            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "action_type": "UPDATED",
+            "log_timestamp": "2024-07-12T10:30:00.123Z"
+        }
+    ]
+}
+```
+
+### Get History by Page ID
+
+- **GET `/api/v1/pipeline/logs/page/{page_id}`**
+
+Retrieves the full synchronization history for a specific OneNote page.
+
+#### Example using `curl`
+
+```bash
+curl -X GET "http://127.0.0.1:8000/api/v1/pipeline/logs/page/0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "X-API-KEY: your_secret_api_key"
+```
+
+#### Expected Response
+
+```json
+{
+    "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "history": [
+        {
+            "log_id": 1,
+            "sync_run_id": "20240712",
+            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "action_type": "UPDATED",
+            "log_timestamp": "2024-07-12T10:30:00.123Z"
+        },
+        {
+            "log_id": 2,
+            "sync_run_id": "20240711",
+            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "action_type": "CREATED",
+            "log_timestamp": "2024-07-11T08:00:00.456Z"
+        }
+    ]
 }
 ```
 

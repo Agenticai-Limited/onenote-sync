@@ -8,4 +8,6 @@ class PipelineStatus(BaseModel):
     new_pages_titles: List[str]
     updated_pages_count: int
     updated_pages_titles: List[str]
+    deleted_pages_count: int
+    deleted_pages_ids: List[str]
     skipped_pages_count: int 

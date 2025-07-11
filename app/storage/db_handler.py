@@ -41,6 +41,18 @@ class PostgresHandler:
             section_name TEXT
         );
         """
+        create_log_table_query = """
+        CREATE TABLE IF NOT EXISTS public.onenote_sync_log (
+            log_id BIGSERIAL PRIMARY KEY,
+            sync_run_id TEXT NOT NULL,
+            page_id TEXT NOT NULL,
+            action_type TEXT NOT NULL CHECK (action_type IN ('CREATED', 'UPDATED', 'DELETED')),
+            log_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """
+        create_log_run_id_index_query = "CREATE INDEX IF NOT EXISTS idx_sync_log_run_id ON public.onenote_sync_log(sync_run_id);"
+        create_log_page_id_index_query = "CREATE INDEX IF NOT EXISTS idx_sync_log_page_id ON public.onenote_sync_log(page_id);"
+        
         # Also create the authorizations table if it doesn't exist.
         # This part was missing from the original logic but is necessary for auth to work.
         create_auth_table_query = """
@@ -57,8 +69,43 @@ class PostgresHandler:
         with self.conn.cursor() as cur:
             cur.execute(create_table_query)
             cur.execute(create_auth_table_query)
+            cur.execute(create_log_table_query)
+            cur.execute(create_log_run_id_index_query)
+            cur.execute(create_log_page_id_index_query)
         self.conn.commit()
         logger.info("Database setup complete. Tables are ready.")
+
+    def get_all_page_ids(self) -> List[str]:
+        """
+        Retrieves all page_ids from the onenote_pages_metadata table.
+        """
+        query = "SELECT page_id FROM onenote_pages_metadata;"
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            return [row[0] for row in cur.fetchall()]
+
+    def delete_page_metadata(self, page_id: str):
+        """
+        Deletes a page's metadata from the onenote_pages_metadata table.
+        """
+        query = "DELETE FROM onenote_pages_metadata WHERE page_id = %s;"
+        with self.conn.cursor() as cur:
+            cur.execute(query, (page_id,))
+        self.conn.commit()
+        logger.info(f"Deleted metadata for page: {page_id}")
+
+    def insert_sync_log(self, sync_run_id: str, page_id: str, action_type: str):
+        """
+        Inserts a new record into the onenote_sync_log table.
+        """
+        query = """
+        INSERT INTO onenote_sync_log (sync_run_id, page_id, action_type)
+        VALUES (%s, %s, %s);
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(query, (sync_run_id, page_id, action_type))
+        self.conn.commit()
+        logger.debug(f"Logged {action_type} for page {page_id} in run {sync_run_id}")
 
     def get_page_last_modified(self, page_id: str) -> Optional[datetime]:
         """

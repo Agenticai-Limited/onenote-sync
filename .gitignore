@@ -85,3 +85,5 @@ instance/
 .dmypy.json
 dmypy.json
 
+GEMINI.md
+prd.md
