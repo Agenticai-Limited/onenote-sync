@@ -130,22 +130,45 @@ class ContentProcessor:
         return response_body.get('output', {}).get('message', {}).get('content', [{}])[0].get('text', '')
 
     def _table_to_markdown(self, table_tag: NavigableString) -> str:
-        """Converts an HTML table into a Markdown string."""
+        """
+        Converts an HTML table into a Markdown string, intelligently handling
+        tables that may not have a header row.
+        """
         markdown_table = []
         rows = table_tag.find_all('tr')
         if not rows:
             return ""
 
-        # Header
-        header_cells = rows[0].find_all(['th', 'td'])
-        header_texts = [cell.get_text(strip=True) for cell in header_cells]
-        markdown_table.append('| ' + ' | '.join(header_texts) + ' |')
+        # --- INTELLIGENT HEADER DETECTION ---
+        # Check if the first row contains any actual header cells (<th>)
+        first_row_is_header = bool(rows[0].find('th'))
 
-        # Separator
-        markdown_table.append('| ' + ' | '.join(['---'] * len(header_cells)) + ' |')
+        if first_row_is_header:
+            # --- SCENARIO 1: Header exists (Original Logic) ---
+            header_cells = rows[0].find_all(['th', 'td'])
+            header_texts = [cell.get_text(strip=True) for cell in header_cells]
+            markdown_table.append('| ' + ' | '.join(header_texts) + ' |')
+            markdown_table.append('| ' + ' | '.join(['---'] * len(header_cells)) + ' |')
+            
+            # Process the rest of the rows as the body
+            body_rows = rows[1:]
 
-        # Body
-        for row in rows[1:]:
+        else:
+            # --- SCENARIO 2: No header exists ---
+            # Create a generic header since none was found.
+            # This is crucial for your "no header" use case.
+            num_columns = len(rows[0].find_all('td'))
+            # Using generic names that fit your context well.
+            generic_headers = ['Feature', 'Details'] if num_columns == 2 else [f'Column {i+1}' for i in range(num_columns)]
+            
+            markdown_table.append('| ' + ' | '.join(generic_headers) + ' |')
+            markdown_table.append('| ' + ' | '.join(['---'] * num_columns) + ' |')
+            
+            # Process ALL rows as the body
+            body_rows = rows
+
+        # --- BODY PROCESSING (COMMON LOGIC) ---
+        for row in body_rows:
             cols = [cell.get_text(strip=True) for cell in row.find_all(['th', 'td'])]
             markdown_table.append('| ' + ' | '.join(cols) + ' |')
 
@@ -167,7 +190,7 @@ class ContentProcessor:
             return f"[TABLE_INFO]{json.dumps(table_data)}[/TABLE_INFO]"
         except Exception as e:
             logger.error(f"Failed to generate summary for table using Titan: {e}", exc_info=True)
-            return f"\n[Table processing failed]\n{markdown_table}\n"
+            return ""
 
     def _process_image(self, img_tag: NavigableString, page_id: str, access_token: str) -> str:
         """Downloads an image and gets a description using Claude."""
