@@ -1,0 +1,12 @@
+# Dockerignore for backend
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.env
+.env.*
+logs
+run.log
+pid.file

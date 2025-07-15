@@ -64,6 +64,30 @@ This project uses `uv` for dependency management.
 uv sync
 ```
 
+## Docker Setup
+
+You can run this project with Docker for quick integration.
+
+### 1. Build the image
+
+In the project root directory:
+
+```bash
+docker build -t onenote-sync .
+```
+
+### 2. Run the container
+
+Make sure to provide your `.env` file for environment variables:
+
+```bash
+docker run -d \
+  --name onenote-sync \
+  -p 52001:52001 \
+  --env-file .env \
+  onenote-sync
+```
+
 ## Usage
 
 The main API endpoint to trigger the OneNote processing pipeline is:
@@ -142,22 +166,22 @@ curl -X GET "http://127.0.0.1:8000/api/v1/pipeline/logs/run/20240712" \
 
 ```json
 {
-    "sync_run_id": "20240712",
-    "summary": {
-        "created": 1,
-        "updated": 5,
-        "deleted": 0,
-        "total": 6
-    },
-    "logs": [
-        {
-            "log_id": 1,
-            "sync_run_id": "20240712",
-            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "action_type": "UPDATED",
-            "log_timestamp": "2024-07-12T10:30:00.123Z"
-        }
-    ]
+  "sync_run_id": "20240712",
+  "summary": {
+    "created": 1,
+    "updated": 5,
+    "deleted": 0,
+    "total": 6
+  },
+  "logs": [
+    {
+      "log_id": 1,
+      "sync_run_id": "20240712",
+      "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "action_type": "UPDATED",
+      "log_timestamp": "2024-07-12T10:30:00.123Z"
+    }
+  ]
 }
 ```
 
@@ -178,23 +202,23 @@ curl -X GET "http://127.0.0.1:8000/api/v1/pipeline/logs/page/0-xxxxxxxxxxxxxxxxx
 
 ```json
 {
-    "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "history": [
-        {
-            "log_id": 1,
-            "sync_run_id": "20240712",
-            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "action_type": "UPDATED",
-            "log_timestamp": "2024-07-12T10:30:00.123Z"
-        },
-        {
-            "log_id": 2,
-            "sync_run_id": "20240711",
-            "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "action_type": "CREATED",
-            "log_timestamp": "2024-07-11T08:00:00.456Z"
-        }
-    ]
+  "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "history": [
+    {
+      "log_id": 1,
+      "sync_run_id": "20240712",
+      "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "action_type": "UPDATED",
+      "log_timestamp": "2024-07-12T10:30:00.123Z"
+    },
+    {
+      "log_id": 2,
+      "sync_run_id": "20240711",
+      "page_id": "0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "action_type": "CREATED",
+      "log_timestamp": "2024-07-11T08:00:00.456Z"
+    }
+  ]
 }
 ```
 
