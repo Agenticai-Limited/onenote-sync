@@ -7,6 +7,7 @@ import boto3
 import filetype
 import time
 import datetime
+import io
 from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup, NavigableString
 from typing import List, Dict, Any, Optional, Literal
@@ -26,8 +27,6 @@ class ContentProcessor:
     def __init__(self, chunk_size: int = 1024, chunk_overlap: int = 200):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.image_storage_path = Path(settings.IMAGE_STORAGE_PATH).expanduser()
-        self.image_storage_path.mkdir(parents=True, exist_ok=True)
         self.img_prompt = """
             Please provide a concise, two-sentence description of this image or screenshot. 
             Focus on the main visual elements, any prominent text/labels, 
@@ -41,16 +40,22 @@ class ContentProcessor:
         )
 
         try:
-            logger.info("Initializing Bedrock Runtime client...")
+            logger.info("Initializing Bedrock Runtime and S3 clients...")
             self.bedrock_client = boto3.client(
                 service_name='bedrock-runtime',
                 region_name=settings.AWS_REGION_NAME,
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
             )
-            logger.info("Bedrock Runtime client initialized successfully.")
+            self.s3_client = boto3.client(
+                's3',
+                region_name=settings.AWS_REGION_NAME,
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+            )
+            logger.info("Bedrock Runtime and S3 clients initialized successfully.")
         except Exception as e:
-            logger.error(f"Failed to initialize Bedrock client: {e}")
+            logger.error(f"Failed to initialize AWS clients: {e}")
             raise
 
     def _invoke_bedrock(self, model_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -193,11 +198,10 @@ class ContentProcessor:
             return ""
 
     def _process_image(self, img_tag: NavigableString, page_id: str, access_token: str) -> str:
-        """Downloads an image and gets a description using Claude."""
+        """Downloads an image, uploads to S3, and gets a description."""
         src = img_tag.get('src', '')
         if not src or '/onenote/resources/' not in src:
             return ""
-        # Correct the URL if it contains 'siteCollections' instead of 'sites' for SharePoint images
         if 'siteCollections' in src:
             src = src.replace('siteCollections', 'sites')
 
@@ -211,31 +215,40 @@ class ContentProcessor:
             kind = filetype.guess(image_data)
             content_type, file_extension = (kind.mime, kind.extension) if kind else ('image/png', 'png')
 
-            # Format: ddmmyy/8-char-hash.extension
-            today = datetime.date.today()
-            date_dir = self.image_storage_path / today.strftime("%d%m%y")
-            date_dir.mkdir(parents=True, exist_ok=True)
-
             image_hash = hashlib.sha256(image_data).hexdigest()
-            image_filename = f"{image_hash[:8]}.{file_extension}"
-            image_path = date_dir / image_filename
+            s3_object_name = f"{image_hash[:16]}.{file_extension}"
 
-            if not os.path.exists(image_path):
-                with open(image_path, "wb") as f:
-                    f.write(image_data)
-                logger.info(f"Saved image to {image_path}")
-            else:
-                logger.info(f"Image {image_path} already exists, skipping save.")
+            # Check if object already exists in S3 to avoid re-uploading
+            try:
+                self.s3_client.head_object(Bucket=settings.AWS_S3_BUCKET_NAME, Key=s3_object_name)
+                logger.info(f"Image already exists in S3: s3://{settings.AWS_S3_BUCKET_NAME}/{s3_object_name}. Skipping upload.")
+            except ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                    # Object does not exist, so upload it
+                    self.s3_client.upload_fileobj(
+                        io.BytesIO(image_data),
+                        settings.AWS_S3_BUCKET_NAME,
+                        s3_object_name,
+                        ExtraArgs={'ACL': 'public-read','ContentType': content_type}
+                    )
+                    logger.info(f"Uploaded image to S3: s3://{settings.AWS_S3_BUCKET_NAME}/{s3_object_name}")
+                else:
+                    logger.error(f"Failed to upload image to S3: {e}", exc_info=True)
+                    # Another error occurred
+                    raise
 
             base64_encoded_image = base64.b64encode(image_data).decode('utf-8')
-
             description = self._get_img_description_from_amazon(base64_encoded_image, content_type)
             logger.info(f"Generated image description using Amazon: {description.strip()}")
 
-            # Construct the public-facing HTTP URI for the image
-            http_uri = f"{settings.IMAGE_BASE_URI}/{date_dir.name}/{image_filename}"
+            # Construct the public-facing S3 URI
+            http_uri = f"https://{settings.AWS_S3_BUCKET_NAME}.s3.{settings.AWS_REGION_NAME}.amazonaws.com/{s3_object_name}"
+            
             image_data = {"source": http_uri, "description": description.strip()}
             return f"[IMAGE_INFO]{json.dumps(image_data)}[/IMAGE_INFO]"
+        except ClientError as e:
+            logger.error(f"Failed to upload image to S3: {e}", exc_info=True)
+            return ""
         except Exception as e:
             logger.error(f"Failed to process image: {e}", exc_info=True)
             return ""

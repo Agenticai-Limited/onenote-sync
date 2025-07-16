@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION_NAME: str 
     EMBEDDING_MODEL_ID: str 
+    AWS_S3_BUCKET_NAME: str
   
     # Milvus
     MILVUS_HOST: str 
@@ -28,10 +29,6 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: int
     POSTGRES_DB: str
-    
-    # Local Data Storage
-    IMAGE_STORAGE_PATH: str
-    IMAGE_BASE_URI: str
 
     # API Security
     API_KEY: str
@@ -42,5 +39,3 @@ class Settings(BaseSettings):
 
 # Create a single settings instance to be used across the application
 settings = Settings()
-
-# Note: The logic for creating the IMAGE_STORAGE_PATH directory has been moved.
